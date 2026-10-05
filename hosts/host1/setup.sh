@@ -4,6 +4,11 @@ set -eux
 
 LAST_OCTET=101
 
+# agnhost listens in the default VRF; allow it to accept connections arriving
+# on VRF-enslaved interfaces (otherwise TCP/UDP to VRF IPs is refused).
+sysctl -w net.ipv4.tcp_l3mdev_accept=1
+sysctl -w net.ipv4.udp_l3mdev_accept=1
+
 ip link set tope0 up
 
 bridgeid=0
