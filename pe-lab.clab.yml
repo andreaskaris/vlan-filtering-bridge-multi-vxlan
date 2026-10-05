@@ -1,0 +1,48 @@
+name: pe-lab
+
+# Topology:
+#
+#   host0 <-> pe0 <-> pe1 <-> host1
+#
+#   hosts (group: host) run the agnhost image as plain Linux hosts
+#   pe0/pe1 (group: frr) run FRR 10.7.1
+#
+# Each node mounts its own hosts/<name>/setup.sh to /setup.sh and runs it via
+# exec (which fires *after* the container entrypoint has started).
+topology:
+  groups:
+    frr:
+      kind: linux
+      image: quay.io/frrouting/frr:10.7.1
+      binds:
+        - hosts/__clabNodeName__/setup.sh:/setup.sh
+        - groups/frr/daemons:/etc/frr/daemons
+        - groups/frr/vtysh.conf:/etc/frr/vtysh.conf
+        # Per-node frr.conf (each PE has its own ASN / BGP config).
+        - hosts/__clabNodeName__/frr.conf:/etc/frr/frr.conf
+      exec:
+        - /setup.sh
+    host:
+      kind: linux
+      image: registry.k8s.io/e2e-test-images/agnhost:2.47
+      # agnhost ENTRYPOINT is ["/agnhost"], so cmd only carries the arguments.
+      cmd: net --serve :8889
+      binds:
+        - hosts/__clabNodeName__/setup.sh:/setup.sh
+      exec:
+        - /setup.sh
+
+  nodes:
+    host0:
+      group: host
+    pe0:
+      group: frr
+    pe1:
+      group: frr
+    host1:
+      group: host
+
+  links:
+    - endpoints: ["host0:eth1", "pe0:tohost"]
+    - endpoints: ["pe0:tope", "pe1:tope"]
+    - endpoints: ["pe1:tohost", "host1:eth1"]
