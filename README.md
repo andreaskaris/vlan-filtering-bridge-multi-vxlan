@@ -106,3 +106,30 @@ Anycast gateways (`10.0.<vid>.1`, `2001:db8:0:<vid>::1`, MAC
 gateway regardless of which PE they are attached to.
 
 Host addresses end in `.100` (host0) and `.101` (host1).
+
+## Usage
+
+Bring up the lab:
+
+```sh
+make deploy
+```
+
+Verify host-to-host connectivity across the overlay:
+
+```sh
+make test
+```
+
+`make test` runs `scripts/test.sh`, which pings each host's peer (`.100` ↔
+`.101`) inside both `vrf1` and `vrf2` and prints `PASS`/`FAIL` per subnet. Set
+`COUNT` to send more probes per check (e.g. `make test COUNT=3`).
+
+Tear the lab down when you're done:
+
+```sh
+make destroy
+```
+
+Use `make redeploy` to rebuild (`destroy` then `deploy`), or
+`make cleanup` to destroy and also remove the generated lab directory.
