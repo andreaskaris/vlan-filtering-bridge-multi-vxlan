@@ -129,9 +129,15 @@ The hosts run `agnhost netexec` on port `8889`, so you can also probe the
 overlay with HTTP. Run `curl` inside the sending host's VRF:
 
 ```sh
+# For connections across the L2VNI
 docker exec -it clab-pe-lab-host0 ip vrf exec vrf1 curl http://10.0.10.101:8889/hostname
 docker exec -it clab-pe-lab-host0 ip vrf exec vrf1 curl http://10.0.10.101:8889/clientip
 docker exec -it clab-pe-lab-host0 ip vrf exec vrf1 curl "http://10.0.10.101:8889/echo?msg=hello"
+
+# For connections across the L3VNI
+docker exec -it clab-pe-lab-host0 ip vrf exec vrf1 curl http://10.0.12.101:8889/hostname
+docker exec -it clab-pe-lab-host0 ip vrf exec vrf1 curl http://10.0.12.101:8889/clientip
+docker exec -it clab-pe-lab-host0 ip vrf exec vrf1 curl "http://10.0.12.101:8889/echo?msg=hello"
 ```
 
 `/hostname` confirms which peer answered, and `/clientip` shows the source
