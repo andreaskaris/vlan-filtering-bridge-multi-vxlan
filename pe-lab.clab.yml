@@ -42,8 +42,12 @@ topology:
       group: host
 
   links:
-    - endpoints: ["host0:tope0", "pe0:tohost0"]
     - endpoints: ["host0:tope1", "pe0:tohost1"]
+    - endpoints: ["host0:tope2", "pe0:tohost2"]
+    - endpoints: ["host0:tope3", "pe0:tohost3"]
+    - endpoints: ["host0:tope4", "pe0:tohost4"]
     - endpoints: ["pe0:tope", "pe1:tope"]
-    - endpoints: ["pe1:tohost0", "host1:tope0"]
     - endpoints: ["pe1:tohost1", "host1:tope1"]
+    - endpoints: ["pe1:tohost2", "host1:tope2"]
+    - endpoints: ["pe1:tohost3", "host1:tope3"]
+    - endpoints: ["pe1:tohost4", "host1:tope4"]

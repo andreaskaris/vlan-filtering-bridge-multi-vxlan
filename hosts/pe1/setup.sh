@@ -14,6 +14,10 @@ ip link add vrf1 type vrf table 1100
 ip link set vrf1 up
 ip link add vrf2 type vrf table 1200
 ip link set vrf2 up
+ip link add vrf3 type vrf table 1300
+ip link set vrf3 up
+ip link add vrf4 type vrf table 1400
+ip link set vrf4 up
 
 #########################
 # L3VNIs below
@@ -49,7 +53,7 @@ ip link set vlan1200 up
 #########################
 # L2VNIs below
 ########################
-for bridgeid in 0 1; do
+for bridgeid in 1 2; do
   ip link add br${bridgeid} type bridge vlan_filtering 1 vlan_default_pvid 0
   ip link set tohost${bridgeid} master br${bridgeid}
   ip link add vxlan${bridgeid} type vxlan dstport 4789 local ${LOOPBACK_IP} nolearning external vnifilter
@@ -62,68 +66,147 @@ for bridgeid in 0 1; do
   bridge link set dev vxlan${bridgeid} vlan_tunnel on neigh_suppress on learning off
 done
 
-bridgeid=0
+bridgeid=1
 vrf=1
 for vid in 10 12; do
   bridge vlan add dev br${bridgeid} vid ${vid} self
   bridge vlan add dev vxlan${bridgeid} vid ${vid}
   bridge vni add dev vxlan${bridgeid} vni ${vid}
   bridge vlan add dev vxlan${bridgeid} vid ${vid} tunnel_info id ${vid}
-  ip link add vlan${vid} link br${bridgeid} type vlan id ${vid}
-  ip link set vlan${vid} up
+  ip link add vlan${bridgeid}.${vid} link br${bridgeid} type vlan id ${vid}
+  ip link set vlan${bridgeid}.${vid} up
   bridge vlan add dev tohost${bridgeid} vid ${vid}
 
-  ip link set vlan${vid} master vrf${vrf} # bind L2VNI to L3VNI (vrf1)
+  ip link set vlan${bridgeid}.${vid} master vrf${vrf} # bind L2VNI to L3VNI (vrf1)
 
   # anycast gateway setup
   # non-macvlan variant (anycast MAC + gateway IP directly on the SVI):
-  ip link set vlan${vid} addr aa:bb:cc:00:00:$(printf %x ${vid}) #  anycast mac on vlan interface (or use anycast MAC on macvlan, see below)
+  ip link set vlan${bridgeid}.${vid} addr aa:bb:cc:00:00:$(printf %x ${vid}) #  anycast mac on vlan interface (or use anycast MAC on macvlan, see below)
   bridge fdb add aa:bb:cc:00:00:$(printf %x ${vid}) dev br${bridgeid} vlan ${vid} self local
-  ip addr add 10.0.${vid}.1/24 dev vlan${vid} # shared gateway IP per L2VNI, on all VTEPs
-  ip addr add 2001:db8:0:${vid}::1/64 dev vlan${vid}
+  ip addr add 10.0.${vid}.1/24 dev vlan${bridgeid}.${vid} # shared gateway IP per L2VNI, on all VTEPs
+  ip addr add 2001:db8:0:${vid}::1/64 dev vlan${bridgeid}.${vid}
 
   # anycast gateway setup - macvlan variant per
   # https://docs.frrouting.org/en/latest/evpn.html#anycast-gateways-with-single-vxlan-device
   # Create a macvlan on the L2VNI SVI to serve as the anycast gateway.
-  # ip link add vlan${vid}agw link vlan${vid} type macvlan mode private
-  # ip link set vlan${vid}agw addr aa:bb:cc:00:00:$(printf %x ${vid}) # same anycast MAC on all VTEPs
-  # ip link set vlan${vid}agw master vrf${vrf} # gateway address lives in the tenant VRF
-  # ip addr add 10.0.${vid}.1/24 dev vlan${vid}agw
-  # ip addr add 2001:db8:0:${vid}::1/64 dev vlan${vid}agw
+  # ip link add vlan${bridgeid}.${vid}agw link vlan${bridgeid}.${vid} type macvlan mode private
+  # ip link set vlan${bridgeid}.${vid}agw addr aa:bb:cc:00:00:$(printf %x ${vid}) # same anycast MAC on all VTEPs
+  # ip link set vlan${bridgeid}.${vid}agw master vrf${vrf} # gateway address lives in the tenant VRF
+  # ip addr add 10.0.${vid}.1/24 dev vlan${bridgeid}.${vid}agw
+  # ip addr add 2001:db8:0:${vid}::1/64 dev vlan${bridgeid}.${vid}agw
   # # Critical: local FDB entry so the anycast MAC is never sent over the overlay.
   # bridge fdb add aa:bb:cc:00:00:$(printf %x ${vid}) dev br${bridgeid} self local
-  # ip link set vlan${vid}agw up
+  # ip link set vlan${bridgeid}.${vid}agw up
 done
 
-bridgeid=1
+bridgeid=2
 vrf=2
 for vid in 20 22; do
   bridge vlan add dev br${bridgeid} vid ${vid} self
   bridge vlan add dev vxlan${bridgeid} vid ${vid}
   bridge vni add dev vxlan${bridgeid} vni ${vid}
   bridge vlan add dev vxlan${bridgeid} vid ${vid} tunnel_info id ${vid}
-  ip link add vlan${vid} link br${bridgeid} type vlan id ${vid}
-  ip link set vlan${vid} up
+  ip link add vlan${bridgeid}.${vid} link br${bridgeid} type vlan id ${vid}
+  ip link set vlan${bridgeid}.${vid} up
   bridge vlan add dev tohost${bridgeid} vid ${vid}
 
-  ip link set vlan${vid} master vrf${vrf} # bind L2VNI to L3VNI (vrf2)
+  ip link set vlan${bridgeid}.${vid} master vrf${vrf} # bind L2VNI to L3VNI (vrf2)
 
   # anycast gateway setup
   # non-macvlan variant (anycast MAC + gateway IP directly on the SVI):
-  ip link set vlan${vid} addr aa:bb:cc:00:00:$(printf %x ${vid}) #  anycast mac on vlan interface (or use anycast MAC on macvlan, see below)
+  ip link set vlan${bridgeid}.${vid} addr aa:bb:cc:00:00:$(printf %x ${vid}) #  anycast mac on vlan interface (or use anycast MAC on macvlan, see below)
   bridge fdb add aa:bb:cc:00:00:$(printf %x ${vid}) dev br${bridgeid} vlan ${vid} self local
-  ip addr add 10.0.${vid}.1/24 dev vlan${vid} # shared gateway IP per L2VNI, on all VTEPs
-  ip addr add 2001:db8:0:${vid}::1/64 dev vlan${vid}
+  ip addr add 10.0.${vid}.1/24 dev vlan${bridgeid}.${vid} # shared gateway IP per L2VNI, on all VTEPs
+  ip addr add 2001:db8:0:${vid}::1/64 dev vlan${bridgeid}.${vid}
 
   # anycast gateway setup - macvlan variant per
   # https://docs.frrouting.org/en/latest/evpn.html#anycast-gateways-with-single-vxlan-device
   # Create a macvlan on the L2VNI SVI to serve as the anycast gateway.
-  # ip link add vlan${vid}agw link vlan${vid} type macvlan mode private
-  # ip link set vlan${vid}agw addr aa:bb:cc:00:00:$(printf %x ${vid}) # same anycast MAC on all VTEPs
-  # ip link set vlan${vid}agw master vrf${vrf} # gateway address lives in the tenant VRF
-  # ip addr add 10.0.${vid}.1/24 dev vlan${vid}agw
-  # ip addr add 2001:db8:0:${vid}::1/64 dev vlan${vid}agw
+  # ip link add vlan${bridgeid}.${vid}agw link vlan${bridgeid}.${vid} type macvlan mode private
+  # ip link set vlan${bridgeid}.${vid}agw addr aa:bb:cc:00:00:$(printf %x ${vid}) # same anycast MAC on all VTEPs
+  # ip link set vlan${bridgeid}.${vid}agw master vrf${vrf} # gateway address lives in the tenant VRF
+  # ip addr add 10.0.${vid}.1/24 dev vlan${bridgeid}.${vid}agw
+  # ip addr add 2001:db8:0:${vid}::1/64 dev vlan${bridgeid}.${vid}agw
   # # Critical: local FDB entry so the anycast MAC is never sent over the overlay.
   # bridge fdb add aa:bb:cc:00:00:$(printf %x ${vid}) dev br${bridgeid} self local
-  # ip link set vlan${vid}agw up
+  # ip link set vlan${bridgeid}.${vid}agw up
 done
+
+#########################
+# Untagged L2VNI below (br3, VNI 30, vrf3)
+#########################
+# Unlike br1/br2, tohost3 carries plain untagged traffic (no 802.1Q trunk):
+# frames are untagged on the tohost3 link, but inside br3 they carry the local
+# vid 1, which maps to L2VNI 30. No L3VNI is wired for vrf3 yet (nothing added
+# on top of brl3).
+bridgeid=3
+vid=1   # VLAN ID 0 is invalid https://github.com/torvalds/linux/blob/22430ae5d90ab288b0ee2ad99ae941f4a666b694/net/bridge/br_private.h#L701
+vni=30
+vrf=3
+ip link add br${bridgeid} type bridge vlan_filtering 1 vlan_default_pvid 0
+ip link set tohost${bridgeid} master br${bridgeid}
+ip link add vxlan${bridgeid} type vxlan dstport 4789 local ${LOOPBACK_IP} nolearning external vnifilter
+ip link set br${bridgeid} addrgenmode none
+ip link set vxlan${bridgeid} addrgenmode none master br${bridgeid}
+ip link set br${bridgeid} address 10:22:33:44:55:$(printf %x ${bridgeid})
+ip link set vxlan${bridgeid} address 10:22:33:44:55:$(printf %x ${bridgeid})
+ip link set br${bridgeid} up
+ip link set vxlan${bridgeid} up
+bridge link set dev vxlan${bridgeid} vlan_tunnel on neigh_suppress on learning off
+
+bridge vlan add dev br${bridgeid} vid ${vid} self
+bridge vlan add dev vxlan${bridgeid} vid ${vid}
+bridge vni add dev vxlan${bridgeid} vni ${vni}
+bridge vlan add dev vxlan${bridgeid} vid ${vid} tunnel_info id ${vni} # map local vid 1 -> VNI 30
+# tohost3 is an untagged access port: untagged ingress frames get tagged with
+# pvid ${vid} inside the bridge, and egress frames leave tohost3 untagged again.
+bridge vlan add dev tohost${bridgeid} vid ${vid} pvid untagged
+
+ip link add vlan${bridgeid}.${vid} link br${bridgeid} type vlan id ${vid}
+ip link set vlan${bridgeid}.${vid} up
+ip link set vlan${bridgeid}.${vid} master vrf${vrf} # anycast gateway lives in vrf3
+
+# anycast gateway setup (anycast MAC + gateway IP directly on the SVI)
+ip link set vlan${bridgeid}.${vid} addr aa:bb:cc:00:00:$(printf %x ${vni})
+bridge fdb add aa:bb:cc:00:00:$(printf %x ${vni}) dev br${bridgeid} vlan ${vid} self local
+ip addr add 10.0.${vni}.1/24 dev vlan${bridgeid}.${vid}
+ip addr add 2001:db8:0:${vni}::1/64 dev vlan${bridgeid}.${vid}
+
+#########################
+# Untagged L2VNI below (br4, VNI 40, vrf4)
+#########################
+# Same untagged access-port setup as br3: tohost4 carries plain untagged traffic
+# (no 802.1Q trunk), frames carry the local vid 1 inside br4, which maps to
+# L2VNI 40. No L3VNI is wired for vrf4 yet (nothing added on top of brl3).
+bridgeid=4
+vid=1   # VLAN ID 0 is invalid https://github.com/torvalds/linux/blob/22430ae5d90ab288b0ee2ad99ae941f4a666b694/net/bridge/br_private.h#L701
+vni=40
+vrf=4
+ip link add br${bridgeid} type bridge vlan_filtering 1 vlan_default_pvid 0
+ip link set tohost${bridgeid} master br${bridgeid}
+ip link add vxlan${bridgeid} type vxlan dstport 4789 local ${LOOPBACK_IP} nolearning external vnifilter
+ip link set br${bridgeid} addrgenmode none
+ip link set vxlan${bridgeid} addrgenmode none master br${bridgeid}
+ip link set br${bridgeid} address 10:22:33:44:55:$(printf %x ${bridgeid})
+ip link set vxlan${bridgeid} address 10:22:33:44:55:$(printf %x ${bridgeid})
+ip link set br${bridgeid} up
+ip link set vxlan${bridgeid} up
+bridge link set dev vxlan${bridgeid} vlan_tunnel on neigh_suppress on learning off
+
+bridge vlan add dev br${bridgeid} vid ${vid} self
+bridge vlan add dev vxlan${bridgeid} vid ${vid}
+bridge vni add dev vxlan${bridgeid} vni ${vni}
+bridge vlan add dev vxlan${bridgeid} vid ${vid} tunnel_info id ${vni} # map local vid 1 -> VNI 40
+# tohost4 is an untagged access port: untagged ingress frames get tagged with
+# pvid ${vid} inside the bridge, and egress frames leave tohost4 untagged again.
+bridge vlan add dev tohost${bridgeid} vid ${vid} pvid untagged
+
+ip link add vlan${bridgeid}.${vid} link br${bridgeid} type vlan id ${vid}
+ip link set vlan${bridgeid}.${vid} up
+ip link set vlan${bridgeid}.${vid} master vrf${vrf} # anycast gateway lives in vrf4
+
+# anycast gateway setup (anycast MAC + gateway IP directly on the SVI)
+ip link set vlan${bridgeid}.${vid} addr aa:bb:cc:00:00:$(printf %x ${vni})
+bridge fdb add aa:bb:cc:00:00:$(printf %x ${vni}) dev br${bridgeid} vlan ${vid} self local
+ip addr add 10.0.${vni}.1/24 dev vlan${bridgeid}.${vid}
+ip addr add 2001:db8:0:${vni}::1/64 dev vlan${bridgeid}.${vid}
